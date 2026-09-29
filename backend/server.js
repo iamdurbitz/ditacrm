@@ -12,6 +12,12 @@ app.use(helmet())
 app.use(cors())
 app.use(express.json())
 
+app.get("/", (req, res) => {
+    res.json({
+        message: "DitaCRM API"
+    })
+})
+
 app.get("/api/health", async (req, res, next) => {
     try {
         const result = await pool.query("SELECT NOW()")
