@@ -3,6 +3,7 @@ import helmet from "helmet"
 import cors from "cors"
 import "dotenv/config"
 import pool from "./db.js"
+import router from "./auth/auth.routes.js"
 
 const app = express()
 
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 8000
 app.use(helmet())
 app.use(cors())
 app.use(express.json())
+app.use("/api/auth", router)
 
 app.get("/", (req, res) => {
     res.json({
