@@ -57,5 +57,47 @@ export const register = async (req, res, next) => {
     } catch (error){
         next(error)
     }
+}
 
+export const login = async (req, res, next) => {
+    const {email, password} = req.body
+
+    if (!email || !password){
+        return res.status(400).json({
+            error: "Email and password are required"
+        })
+    }
+
+    try {
+
+        const result = await pool.query(
+                "SELECT id, password, email, name, role FROM users WHERE email = $1", [email]
+            )
+
+        if (result.rows.length < 1) {
+            return res.status(401).json({
+                error: "Invalid email or password"
+            })
+        }
+
+        const user = result.rows[0]
+
+        const isPasswordValid = await bcrypt.compare(password, user.password)
+
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                error: "Invalid email or password"
+            })
+        }
+        
+        return res.status(200).json({
+            message: "Login successful",
+            user: user.name,
+            role: user.role,
+            email: user.email
+        })
+        
+    } catch (error) {
+        next(error)
+    }
 }
