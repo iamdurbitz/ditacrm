@@ -4,6 +4,7 @@ import cors from "cors"
 import "dotenv/config"
 import pool from "./db.js"
 import router from "./auth/auth.routes.js"
+import { authMiddleware } from "./middleware/auth.middleware.js"
 
 const app = express()
 
@@ -32,6 +33,13 @@ app.get("/api/health", async (req, res, next) => {
     } catch (error) {
         next(error)
     }
+})
+
+app.get("/api/protected", authMiddleware, (req, res) => {
+    res.json({
+        message: "You are authenticated",
+        user: req.user
+    })
 })
 
 app.use((err, req, res, next) => {

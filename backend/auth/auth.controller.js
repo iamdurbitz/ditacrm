@@ -1,5 +1,6 @@
 import pool from "../db.js"
 import bcrypt from "bcrypt"
+import jwt from "jsonwebtoken"
 
 export const register = async (req, res, next) => {
     const {businessName, name, email, password} = req.body
@@ -71,7 +72,7 @@ export const login = async (req, res, next) => {
     try {
 
         const result = await pool.query(
-                "SELECT id, password, email, name, role FROM users WHERE email = $1", [email]
+                "SELECT id, business_id, password, email, name, role FROM users WHERE email = $1", [email]
             )
 
         if (result.rows.length < 1) {
@@ -90,8 +91,21 @@ export const login = async (req, res, next) => {
             })
         }
         
+        const token = jwt.sign(
+            {
+                userId: user.id,
+                businessId: user.business_id,
+                role: user.role
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: "1h"
+            }
+        )
+
         return res.status(200).json({
             message: "Login successful",
+            token: token,
             user: user.name,
             role: user.role,
             email: user.email
