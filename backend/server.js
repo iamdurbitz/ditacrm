@@ -4,6 +4,7 @@ import cors from "cors"
 import "dotenv/config"
 import pool from "./db.js"
 import router from "./auth/auth.routes.js"
+import employeeRouter from "./employees/employee.routes.js"
 import { authMiddleware } from "./middleware/auth.middleware.js"
 import { authorize } from "./middleware/authorize.middleware.js"
 
@@ -15,6 +16,7 @@ app.use(helmet())
 app.use(cors())
 app.use(express.json())
 app.use("/api/auth", router)
+app.use("/api/employees", employeeRouter)
 
 app.get("/", (req, res) => {
     res.json({
@@ -43,11 +45,7 @@ app.get("/api/protected", authMiddleware, (req, res) => {
     })
 })
 
-app.get(
-    "/api/owner",
-    authMiddleware,
-    authorize(["OWNER"]),
-    (req, res) => {
+app.get("/api/owner", authMiddleware, authorize(["OWNER"]), (req, res) => {
         res.json({
             message: "You are an owner"
         })
