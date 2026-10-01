@@ -44,3 +44,24 @@ export const createEmployee = async (req, res, next) => {
         next(error)
     }
 }
+
+export const getEmployees = async (req, res, next) => {
+    try {
+        const businessId = req.user.businessId
+
+        const result = await pool.query(
+            `SELECT id, business_id, name, email, role, created_at
+            FROM users
+            WHERE business_id = $1
+            AND role = 'EMPLOYEE'
+            ORDER BY id`,
+            [businessId]
+        )
+
+        return res.status(200).json({
+            employees: result.rows
+        })
+    } catch (error) {
+        next(error)
+    }
+}

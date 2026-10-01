@@ -1,10 +1,12 @@
 import express from "express"
-import { createEmployee } from "./employee.controller.js"
+import { createEmployee, getEmployees } from "./employee.controller.js"
 import { authMiddleware } from "../middleware/auth.middleware.js"
 import { authorize } from "../middleware/authorize.middleware.js"
 
-const router = express.Router()
+const employeeRouter = express.Router()
 
-router.post("/", authMiddleware, authorize(["OWNER"]), createEmployee)
 
-export default router
+employeeRouter.get("/", authMiddleware, authorize(["OWNER"]), getEmployees)
+employeeRouter.post("/", authMiddleware, authorize(["OWNER"]), createEmployee)
+
+export default employeeRouter
