@@ -5,6 +5,7 @@ import "dotenv/config"
 import pool from "./db.js"
 import router from "./auth/auth.routes.js"
 import { authMiddleware } from "./middleware/auth.middleware.js"
+import { authorize } from "./middleware/authorize.middleware.js"
 
 const app = express()
 
@@ -41,6 +42,17 @@ app.get("/api/protected", authMiddleware, (req, res) => {
         user: req.user
     })
 })
+
+app.get(
+    "/api/owner",
+    authMiddleware,
+    authorize(["OWNER"]),
+    (req, res) => {
+        res.json({
+            message: "You are an owner"
+        })
+    }
+)
 
 app.use((err, req, res, next) => {
     console.error(err)
