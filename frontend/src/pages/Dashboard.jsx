@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 function Dashboard() {
     const navigate = useNavigate()
 
     const [authStatus, setAuthStatus] = useState('checking')
+    const [userRole, setUserRole] = useState(null)
 
     function handleSignOut() {
         localStorage.removeItem('token')
@@ -21,12 +22,15 @@ function Dashboard() {
 
         async function verifyToken() {
             try {
-                const response = await fetch('http://localhost:8000/api/protected', {
-                    method: 'GET',
-                    headers: {
-                        Authorization: `Bearer ${token}`
+                const response = await fetch(
+                    'http://localhost:8000/api/protected',
+                    {
+                        method: 'GET',
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
                     }
-                })
+                )
 
                 if (!response.ok) {
                     localStorage.removeItem('token')
@@ -34,6 +38,9 @@ function Dashboard() {
                     return
                 }
 
+                const data = await response.json()
+
+                setUserRole(data.user?.role ?? null)
                 setAuthStatus('authenticated')
             } catch (error) {
                 console.error('Authentication error:', error)
@@ -124,29 +131,30 @@ function Dashboard() {
     return (
         <div className="dashboard-page">
             <aside className="dashboard-sidebar">
-                <div className="dashboard-logo">
+                <Link to="/dashboard" className="dashboard-logo">
                     <span>DitaCRM</span>
-                </div>
+                </Link>
 
                 <div className="sidebar-section-label">
                     WORKSPACE
                 </div>
 
-                <nav className="dashboard-nav" aria-label="Main navigation">
-                    <a
-                        href="/dashboard"
+                <nav
+                    className="dashboard-nav"
+                    aria-label="Main navigation"
+                >
+                    <Link
+                        to="/dashboard"
                         className="dashboard-nav-item dashboard-nav-item--active"
                         aria-current="page"
                     >
-                        <span className="nav-item-icon">◫</span>
                         Overview
-                    </a>
+                    </Link>
 
                     <a
                         href="#customers"
                         className="dashboard-nav-item"
                     >
-                        <span className="nav-item-icon">♙</span>
                         Customers
                     </a>
 
@@ -154,21 +162,20 @@ function Dashboard() {
                         href="#products"
                         className="dashboard-nav-item"
                     >
-                        <span className="nav-item-icon">▤</span>
                         Products
                     </a>
 
-                    <a
-                        href="#employees"
-                        className="dashboard-nav-item"
-                    >
-                        <span className="nav-item-icon">♧</span>
-                        Employees
-                    </a>
+                    {userRole === 'OWNER' && (
+                        <Link
+                            to="/employees"
+                            className="dashboard-nav-item"
+                        >
+                            Employees
+                        </Link>
+                    )}
                 </nav>
 
                 <div className="sidebar-bottom">
-
                     <button
                         type="button"
                         className="dashboard-nav-item dashboard-nav-item--signout"
