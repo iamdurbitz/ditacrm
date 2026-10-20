@@ -5,12 +5,6 @@ function Dashboard() {
     const navigate = useNavigate()
 
     const [authStatus, setAuthStatus] = useState('checking')
-    const [userRole, setUserRole] = useState(null)
-
-    function handleSignOut() {
-        localStorage.removeItem('token')
-        navigate('/login', { replace: true })
-    }
 
     useEffect(() => {
         const token = localStorage.getItem('token')
@@ -38,9 +32,6 @@ function Dashboard() {
                     return
                 }
 
-                const data = await response.json()
-
-                setUserRole(data.user?.role ?? null)
                 setAuthStatus('authenticated')
             } catch (error) {
                 console.error('Authentication error:', error)
@@ -129,138 +120,52 @@ function Dashboard() {
     }
 
     return (
-        <div className="dashboard-page">
-            <aside className="dashboard-sidebar">
-                <Link
-                    to="/dashboard"
-                    className="dashboard-logo"
-                >
-                    <span>DitaCRM</span>
-                </Link>
+        <section className="dashboard-content">
+            <div className="dashboard-page-heading">
+                <p className="dashboard-overline">
+                    YOUR WORKSPACE
+                </p>
 
-                <div className="sidebar-section-label">
-                    WORKSPACE
+                <h1 className="dashboard-welcome">
+                    Overview
+                </h1>
+
+                <p className="dashboard-page-subtitle">
+                    A clear view of your business, one step at a time.
+                </p>
+            </div>
+
+            <Link
+                to="/customers"
+                className="customers-widget customers-widget-link"
+                aria-labelledby="customers-widget-title"
+            >
+                <div
+                    className="customers-widget-icon"
+                    aria-hidden="true"
+                >
+                    ♙
                 </div>
 
-                <nav
-                    className="dashboard-nav"
-                    aria-label="Main navigation"
-                >
-                    <Link
-                        to="/dashboard"
-                        className="dashboard-nav-item dashboard-nav-item--active"
-                        aria-current="page"
-                    >
-                        Overview
-                    </Link>
+                <div className="customers-widget-copy">
+                    <p className="panel-label">
+                        WORKSPACE MODULE
+                    </p>
 
-                    <Link
-                        to="/customers"
-                        className="dashboard-nav-item"
-                    >
+                    <h2 id="customers-widget-title">
                         Customers
-                    </Link>
+                    </h2>
 
-                    <a
-                        href="#products"
-                        className="dashboard-nav-item"
-                    >
-                        Products
-                    </a>
-
-                    {userRole === 'OWNER' && (
-                        <Link
-                            to="/employees"
-                            className="dashboard-nav-item"
-                        >
-                            Employees
-                        </Link>
-                    )}
-                </nav>
-
-                <div className="sidebar-bottom">
-                    <button
-                        type="button"
-                        className="dashboard-nav-item dashboard-nav-item--signout"
-                        onClick={handleSignOut}
-                    >
-                        <span
-                            className="nav-item-icon"
-                            aria-hidden="true"
-                        >
-                            ↪
-                        </span>
-
-                        Sign out
-                    </button>
+                    <p>
+                        Manage customer records, contact details, and notes.
+                    </p>
                 </div>
-            </aside>
 
-            <main className="dashboard-main">
-                <header className="dashboard-topbar">
-                    <div>
-                        <p className="dashboard-overline">
-                            WORKSPACE
-                        </p>
-
-                        <p className="dashboard-breadcrumb">
-                            Overview
-                        </p>
-                    </div>
-                </header>
-
-                <section className="dashboard-content">
-                    <div className="dashboard-page-heading">
-                        <p className="dashboard-overline">
-                            YOUR WORKSPACE
-                        </p>
-
-                        <h1 className="dashboard-welcome">
-                            Overview
-                        </h1>
-
-                        <p className="dashboard-page-subtitle">
-                            A clear view of your business, one step at a time.
-                        </p>
-                    </div>
-
-                    <Link
-                        to="/customers"
-                        className="customers-widget customers-widget-link"
-                        aria-labelledby="customers-widget-title"
-                    >
-                        <div
-                            className="customers-widget-icon"
-                            aria-hidden="true"
-                        >
-                            ♙
-                        </div>
-
-                        <div className="customers-widget-copy">
-                            <p className="panel-label">
-                                WORKSPACE MODULE
-                            </p>
-
-                            <h2 id="customers-widget-title">
-                                Customers
-                            </h2>
-
-                            <p>
-                                Manage customer records, contact details, and notes.
-                            </p>
-                        </div>
-
-                        <span className="customers-widget-status">
-                            Open module →
-                        </span>
-                    </Link>
-                </section>
-
-                <footer className="dashboard-footer">
-                    DitaCRM <span>·</span> Your business, in sync.
-                </footer>
-            </main>
-        </div>
+                <span className="customers-widget-status">
+                    Open module →
+                </span>
+            </Link>
+        </section>
     )
 }
 
