@@ -56,7 +56,7 @@ CREATE INDEX idx_users_business_id
 -- =============================================
 
 CREATE TABLE customers (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  
 
     business_id BIGINT NOT NULL
         REFERENCES businesses(id) ON DELETE CASCADE,

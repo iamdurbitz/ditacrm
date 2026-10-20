@@ -7,6 +7,7 @@ import router from "./auth/auth.routes.js"
 import employeeRouter from "./employees/employee.routes.js"
 import { authMiddleware } from "./middleware/auth.middleware.js"
 import { authorize } from "./middleware/authorize.middleware.js"
+import customerRouter from "./customers/customer.routes.js"
 
 const app = express()
 
@@ -17,6 +18,7 @@ app.use(cors())
 app.use(express.json())
 app.use("/api/auth", router)
 app.use("/api/employees", employeeRouter)
+app.use("/api/customers", customerRouter)
 
 app.get("/", (req, res) => {
     res.json({
