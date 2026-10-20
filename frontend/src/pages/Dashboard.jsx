@@ -131,7 +131,10 @@ function Dashboard() {
     return (
         <div className="dashboard-page">
             <aside className="dashboard-sidebar">
-                <Link to="/dashboard" className="dashboard-logo">
+                <Link
+                    to="/dashboard"
+                    className="dashboard-logo"
+                >
                     <span>DitaCRM</span>
                 </Link>
 
@@ -151,12 +154,12 @@ function Dashboard() {
                         Overview
                     </Link>
 
-                    <a
-                        href="#customers"
+                    <Link
+                        to="/customers"
                         className="dashboard-nav-item"
                     >
                         Customers
-                    </a>
+                    </Link>
 
                     <a
                         href="#products"
@@ -181,7 +184,13 @@ function Dashboard() {
                         className="dashboard-nav-item dashboard-nav-item--signout"
                         onClick={handleSignOut}
                     >
-                        <span className="nav-item-icon">↪</span>
+                        <span
+                            className="nav-item-icon"
+                            aria-hidden="true"
+                        >
+                            ↪
+                        </span>
+
                         Sign out
                     </button>
                 </div>
@@ -215,9 +224,9 @@ function Dashboard() {
                         </p>
                     </div>
 
-                    <section
-                        className="customers-widget"
-                        id="customers"
+                    <Link
+                        to="/customers"
+                        className="customers-widget customers-widget-link"
                         aria-labelledby="customers-widget-title"
                     >
                         <div
@@ -237,14 +246,14 @@ function Dashboard() {
                             </h2>
 
                             <p>
-                                Your customer workspace will take shape here.
+                                Manage customer records, contact details, and notes.
                             </p>
                         </div>
 
                         <span className="customers-widget-status">
-                            In progress
+                            Open module →
                         </span>
-                    </section>
+                    </Link>
                 </section>
 
                 <footer className="dashboard-footer">
