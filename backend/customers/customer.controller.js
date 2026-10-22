@@ -18,6 +18,64 @@ function isValidId(id) {
     }
 }
 
+function parseAmount(value, fieldName, defaultValue = 0) {
+    if (value === undefined || value === null || value === "") {
+        return { value: defaultValue }
+    }
+
+    if (
+        typeof value !== "number" &&
+        typeof value !== "string"
+    ) {
+        return { error: `${fieldName} must be a valid amount.` }
+    }
+
+    const normalizedValue = String(value).trim()
+
+    // Allow up to 10 integer digits and 2 decimal places.
+    if (!/^\d{1,10}(\.\d{1,2})?$/.test(normalizedValue)) {
+        return {
+            error: `${fieldName} must be a non-negative amount with up to 2 decimal places.`
+        }
+    }
+
+    return { value: normalizedValue }
+}
+
+function validateCustomerAmounts(totalAmount, amountPaid) {
+    const parsedTotal = parseAmount(
+        totalAmount,
+        "Total amount"
+    )
+
+    if (parsedTotal.error) {
+        return { error: parsedTotal.error }
+    }
+
+    const parsedPaid = parseAmount(
+        amountPaid,
+        "Amount paid"
+    )
+
+    if (parsedPaid.error) {
+        return { error: parsedPaid.error }
+    }
+
+    if (
+        Number(parsedPaid.value) >
+        Number(parsedTotal.value)
+    ) {
+        return {
+            error: "Amount paid cannot exceed total amount."
+        }
+    }
+
+    return {
+        totalAmount: parsedTotal.value,
+        amountPaid: parsedPaid.value
+    }
+}
+
 // GET /api/customers
 export async function getCustomers(req, res, next) {
     try {
@@ -27,10 +85,11 @@ export async function getCustomers(req, res, next) {
             `SELECT
                 id,
                 name,
-                email,
                 phone,
-                company,
                 address,
+                total_amount,
+                amount_paid,
+                (total_amount - amount_paid) AS remaining_balance,
                 notes,
                 created_at,
                 updated_at
@@ -65,10 +124,11 @@ export async function getCustomerById(req, res, next) {
             `SELECT
                 id,
                 name,
-                email,
                 phone,
-                company,
                 address,
+                total_amount,
+                amount_paid,
+                (total_amount - amount_paid) AS remaining_balance,
                 notes,
                 created_at,
                 updated_at
@@ -98,14 +158,13 @@ export async function createCustomer(req, res, next) {
 
         const {
             name,
-            email,
             phone,
-            company,
             address,
+            total_amount,
+            amount_paid,
             notes
         } = req.body
 
-        // Name validation
         if (typeof name !== "string" || !name.trim()) {
             return res.status(400).json({
                 error: "Customer name is required."
@@ -118,42 +177,19 @@ export async function createCustomer(req, res, next) {
             })
         }
 
-        // Email validation
         if (
-            email != null &&
+            phone != null &&
+            phone !== "" &&
             (
-                typeof email !== "string" ||
-                email.trim().length === 0 ||
-                email.trim().length > 255
+                typeof phone !== "string" ||
+                phone.trim().length > 30
             )
         ) {
             return res.status(400).json({
-                error: "Invalid email."
+                error: "Invalid phone number."
             })
         }
 
-        // Phone and company validation
-        const optionalFields = {
-            phone: { value: phone, max: 30 },
-            company: { value: company, max: 150 }
-        }
-
-        for (const [field, config] of Object.entries(optionalFields)) {
-            if (
-                config.value != null &&
-                (
-                    typeof config.value !== "string" ||
-                    config.value.trim().length === 0 ||
-                    config.value.trim().length > config.max
-                )
-            ) {
-                return res.status(400).json({
-                    error: `Invalid ${field}.`
-                })
-            }
-        }
-
-        // Address validation
         if (
             address != null &&
             (
@@ -166,7 +202,6 @@ export async function createCustomer(req, res, next) {
             })
         }
 
-        // Notes validation
         if (
             notes != null &&
             (
@@ -179,34 +214,46 @@ export async function createCustomer(req, res, next) {
             })
         }
 
+        const amounts = validateCustomerAmounts(
+            total_amount,
+            amount_paid
+        )
+
+        if (amounts.error) {
+            return res.status(400).json({
+                error: amounts.error
+            })
+        }
+
         const result = await pool.query(
             `INSERT INTO customers (
                 business_id,
                 name,
-                email,
                 phone,
-                company,
                 address,
+                total_amount,
+                amount_paid,
                 notes
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING
                 id,
                 name,
-                email,
                 phone,
-                company,
                 address,
+                total_amount,
+                amount_paid,
+                (total_amount - amount_paid) AS remaining_balance,
                 notes,
                 created_at,
                 updated_at`,
             [
                 businessId,
                 name.trim(),
-                email?.trim() || null,
                 phone?.trim() || null,
-                company?.trim() || null,
                 address?.trim() || null,
+                amounts.totalAmount,
+                amounts.amountPaid,
                 notes?.trim() || null
             ]
         )
@@ -235,14 +282,13 @@ export async function updateCustomer(req, res, next) {
 
         const {
             name,
-            email,
             phone,
-            company,
             address,
+            total_amount,
+            amount_paid,
             notes
         } = req.body
 
-        // Name validation
         if (typeof name !== "string" || !name.trim()) {
             return res.status(400).json({
                 error: "Customer name is required."
@@ -255,42 +301,19 @@ export async function updateCustomer(req, res, next) {
             })
         }
 
-        // Email validation
         if (
-            email != null &&
+            phone != null &&
+            phone !== "" &&
             (
-                typeof email !== "string" ||
-                email.trim().length === 0 ||
-                email.trim().length > 255
+                typeof phone !== "string" ||
+                phone.trim().length > 30
             )
         ) {
             return res.status(400).json({
-                error: "Invalid email."
+                error: "Invalid phone number."
             })
         }
 
-        // Phone and company validation
-        const optionalFields = {
-            phone: { value: phone, max: 30 },
-            company: { value: company, max: 150 }
-        }
-
-        for (const [field, config] of Object.entries(optionalFields)) {
-            if (
-                config.value != null &&
-                (
-                    typeof config.value !== "string" ||
-                    config.value.trim().length === 0 ||
-                    config.value.trim().length > config.max
-                )
-            ) {
-                return res.status(400).json({
-                    error: `Invalid ${field}.`
-                })
-            }
-        }
-
-        // Address validation
         if (
             address != null &&
             (
@@ -303,7 +326,6 @@ export async function updateCustomer(req, res, next) {
             })
         }
 
-        // Notes validation
         if (
             notes != null &&
             (
@@ -316,33 +338,45 @@ export async function updateCustomer(req, res, next) {
             })
         }
 
+        const amounts = validateCustomerAmounts(
+            total_amount,
+            amount_paid
+        )
+
+        if (amounts.error) {
+            return res.status(400).json({
+                error: amounts.error
+            })
+        }
+
         const result = await pool.query(
             `UPDATE customers
              SET
                 name = $1,
-                email = $2,
-                phone = $3,
-                company = $4,
-                address = $5,
+                phone = $2,
+                address = $3,
+                total_amount = $4,
+                amount_paid = $5,
                 notes = $6,
                 updated_at = NOW()
              WHERE id = $7 AND business_id = $8
              RETURNING
                 id,
                 name,
-                email,
                 phone,
-                company,
                 address,
+                total_amount,
+                amount_paid,
+                (total_amount - amount_paid) AS remaining_balance,
                 notes,
                 created_at,
                 updated_at`,
             [
                 name.trim(),
-                email?.trim() || null,
                 phone?.trim() || null,
-                company?.trim() || null,
                 address?.trim() || null,
+                amounts.totalAmount,
+                amounts.amountPaid,
                 notes?.trim() || null,
                 id,
                 businessId

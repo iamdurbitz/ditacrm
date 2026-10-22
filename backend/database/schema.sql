@@ -56,24 +56,29 @@ CREATE INDEX idx_users_business_id
 -- =============================================
 
 CREATE TABLE customers (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
 
-    business_id BIGINT NOT NULL
-        REFERENCES businesses(id) ON DELETE CASCADE,
+    business_id BIGINT NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
 
     name VARCHAR(150) NOT NULL,
-    email VARCHAR(255),
     phone VARCHAR(30),
-    company VARCHAR(150),
-    address TEXT,
+    address VARCHAR(2000),
+
+    total_amount NUMERIC(12, 2) NOT NULL DEFAULT 0
+        CHECK (total_amount >= 0),
+
+    amount_paid NUMERIC(12, 2) NOT NULL DEFAULT 0
+        CHECK (amount_paid >= 0),
+
     notes TEXT,
 
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    -- Required for composite foreign keys.
     CONSTRAINT uq_customers_business_id_id
-        UNIQUE (business_id, id)
+        UNIQUE (business_id, id),
+
+    CHECK (amount_paid <= total_amount)
 );
 
 CREATE INDEX idx_customers_business_id

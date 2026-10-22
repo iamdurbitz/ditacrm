@@ -5,19 +5,30 @@ const API_URL = 'http://localhost:8000/api'
 
 const EMPTY_FORM = {
     name: '',
-    email: '',
     phone: '',
-    company: '',
     address: '',
+    total_amount: '0',
+    amount_paid: '0',
     notes: '',
+}
+
+const currencyFormatter = new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+})
+
+function formatCurrency(value) {
+    const amount = Number(value ?? 0)
+
+    return currencyFormatter.format(
+        Number.isFinite(amount) ? amount : 0
+    )
 }
 
 function Customers() {
     const navigate = useNavigate()
 
     const [customers, setCustomers] = useState([])
-    const [userRole, setUserRole] = useState(null)
-
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [deletingId, setDeletingId] = useState(null)
@@ -31,7 +42,7 @@ function Customers() {
 
     const [showForm, setShowForm] = useState(false)
     const [editingCustomerId, setEditingCustomerId] = useState(null)
-    const [form, setForm] = useState(EMPTY_FORM)
+    const [form, setForm] = useState({ ...EMPTY_FORM })
 
     const request = useCallback(async (path, options = {}) => {
         const token = localStorage.getItem('token')
@@ -83,8 +94,7 @@ function Customers() {
         setPageError('')
 
         try {
-            const userData = await request('/protected')
-            setUserRole(userData.user?.role ?? null)
+            await request('/protected')
 
             const data = await request('/customers')
 
@@ -125,9 +135,7 @@ function Customers() {
 
         const searchableFields = [
             'name',
-            'email',
             'phone',
-            'company',
             'address',
             'notes',
         ]
@@ -169,6 +177,17 @@ function Customers() {
         })
     }, [customers, searchTerm, sortBy])
 
+    const formRemainingBalance = useMemo(() => {
+        const total = Number(form.total_amount || 0)
+        const paid = Number(form.amount_paid || 0)
+
+        if (!Number.isFinite(total) || !Number.isFinite(paid)) {
+            return 0
+        }
+
+        return total - paid
+    }, [form.total_amount, form.amount_paid])
+
     function openCreateForm() {
         setEditingCustomerId(null)
         setForm({ ...EMPTY_FORM })
@@ -182,10 +201,10 @@ function Customers() {
 
         setForm({
             name: customer.name ?? '',
-            email: customer.email ?? '',
             phone: customer.phone ?? '',
-            company: customer.company ?? '',
             address: customer.address ?? '',
+            total_amount: String(customer.total_amount ?? 0),
+            amount_paid: String(customer.amount_paid ?? 0),
             notes: customer.notes ?? '',
         })
 
@@ -224,6 +243,41 @@ function Customers() {
 
         const isEditing = editingCustomerId !== null
 
+        const totalAmount = Number(form.total_amount)
+        const amountPaid = Number(form.amount_paid)
+
+        if (
+            form.total_amount.trim() === '' ||
+            form.amount_paid.trim() === '' ||
+            !Number.isFinite(totalAmount) ||
+            !Number.isFinite(amountPaid) ||
+            totalAmount < 0 ||
+            amountPaid < 0
+        ) {
+            setFormError(
+                'Total amount and amount paid must be valid non-negative numbers.'
+            )
+            setSaving(false)
+            return
+        }
+
+        if (amountPaid > totalAmount) {
+            setFormError(
+                'Amount paid cannot exceed the total amount.'
+            )
+            setSaving(false)
+            return
+        }
+
+        const payload = {
+            name: form.name.trim(),
+            phone: form.phone.trim(),
+            address: form.address.trim(),
+            total_amount: form.total_amount,
+            amount_paid: form.amount_paid,
+            notes: form.notes.trim(),
+        }
+
         try {
             const data = await request(
                 isEditing
@@ -231,7 +285,7 @@ function Customers() {
                     : '/customers',
                 {
                     method: isEditing ? 'PUT' : 'POST',
-                    body: JSON.stringify(form),
+                    body: JSON.stringify(payload),
                 }
             )
 
@@ -381,18 +435,6 @@ function Customers() {
                         </label>
 
                         <label>
-                            Email
-                            <input
-                                type="email"
-                                name="email"
-                                value={form.email}
-                                onChange={handleFormChange}
-                                maxLength={255}
-                                placeholder="name@example.com"
-                            />
-                        </label>
-
-                        <label>
                             Phone
                             <input
                                 type="tel"
@@ -401,17 +443,6 @@ function Customers() {
                                 onChange={handleFormChange}
                                 maxLength={30}
                                 placeholder="Phone number"
-                            />
-                        </label>
-
-                        <label>
-                            Company
-                            <input
-                                name="company"
-                                value={form.company}
-                                onChange={handleFormChange}
-                                maxLength={150}
-                                placeholder="Company name"
                             />
                         </label>
 
@@ -425,6 +456,41 @@ function Customers() {
                                 placeholder="Customer address"
                             />
                         </label>
+
+                        <label>
+                            Total amount (₺)
+                            <input
+                                type="number"
+                                name="total_amount"
+                                value={form.total_amount}
+                                onChange={handleFormChange}
+                                min="0"
+                                max="9999999999.99"
+                                step="0.01"
+                                required
+                            />
+                        </label>
+
+                        <label>
+                            Amount paid (₺)
+                            <input
+                                type="number"
+                                name="amount_paid"
+                                value={form.amount_paid}
+                                onChange={handleFormChange}
+                                min="0"
+                                max="9999999999.99"
+                                step="0.01"
+                                required
+                            />
+                        </label>
+
+                        <div className="customers-balance-preview">
+                            <span>Remaining balance</span>
+                            <strong>
+                                {formatCurrency(formRemainingBalance)}
+                            </strong>
+                        </div>
 
                         <label className="customers-notes-field">
                             Notes
@@ -500,7 +566,7 @@ function Customers() {
                             onChange={(event) =>
                                 setSearchTerm(event.target.value)
                             }
-                            placeholder="Search name, phone, company, notes..."
+                            placeholder="Search name, phone, address, notes..."
                             aria-label="Search customers"
                         />
 
@@ -586,92 +652,108 @@ function Customers() {
                         <table className="customers-table">
                             <thead>
                                 <tr>
-                                    <th>Customer</th>
-                                    <th>Contact</th>
-                                    <th>Company</th>
-                                    <th>Address</th>
-                                    <th>Notes</th>
-                                    <th>Actions</th>
+                                    <th>Ad Soyad</th>
+                                    <th>Telefon</th>
+                                    <th>Adres</th>
+                                    <th>Toplam Tutar</th>
+                                    <th>Yapılan Ödeme</th>
+                                    <th>Kalan Borç</th>
+                                    <th>Notlar</th>
+                                    <th>İşlemler</th>
                                 </tr>
                             </thead>
 
                             <tbody>
-                                {filteredCustomers.map((customer) => (
-                                    <tr key={customer.id}>
-                                        <td>
-                                            <div className="customers-person">
-                                                <span
-                                                    className="customers-avatar"
-                                                    aria-hidden="true"
-                                                >
-                                                    {String(customer.name ?? '?')
-                                                        .trim()
-                                                        .charAt(0)
-                                                        .toLocaleUpperCase('tr-TR')}
-                                                </span>
+                                {filteredCustomers.map((customer) => {
+                                    const total = Number(
+                                        customer.total_amount ?? 0
+                                    )
 
-                                                <span className="customers-person-name">
-                                                    {customer.name}
-                                                </span>
-                                            </div>
-                                        </td>
+                                    const paid = Number(
+                                        customer.amount_paid ?? 0
+                                    )
 
-                                        <td>
-                                            <div className="customers-contact">
-                                                {customer.email && (
-                                                    <span>{customer.email}</span>
-                                                )}
+                                    const remaining = Number(
+                                        customer.remaining_balance ??
+                                        total - paid
+                                    )
 
-                                                {customer.phone && (
-                                                    <span>{customer.phone}</span>
-                                                )}
+                                    return (
+                                        <tr key={customer.id}>
+                                            <td>
+                                                <div className="customers-person">
+                                                    <span
+                                                        className="customers-avatar"
+                                                        aria-hidden="true"
+                                                    >
+                                                        {String(customer.name ?? '?')
+                                                            .trim()
+                                                            .charAt(0)
+                                                            .toLocaleUpperCase('tr-TR')}
+                                                    </span>
 
-                                                {!customer.email &&
-                                                    !customer.phone && '—'}
-                                            </div>
-                                        </td>
+                                                    <span className="customers-person-name">
+                                                        {customer.name}
+                                                    </span>
+                                                </div>
+                                            </td>
 
-                                        <td>{customer.company || '—'}</td>
-                                        <td>{customer.address || '—'}</td>
+                                            <td>{customer.phone || '—'}</td>
+                                            <td>{customer.address || '—'}</td>
+                                            <td>{formatCurrency(total)}</td>
+                                            <td>{formatCurrency(paid)}</td>
 
-                                        <td>
-                                            <span className="customers-notes-cell">
-                                                {customer.notes || '—'}
-                                            </span>
-                                        </td>
-
-                                        <td>
-                                            <div className="customers-row-actions">
-                                                <button
-                                                    type="button"
-                                                    className="customers-row-button"
-                                                    onClick={() =>
-                                                        openEditForm(customer)
+                                            <td>
+                                                <strong
+                                                    className={
+                                                        remaining > 0
+                                                            ? 'customers-balance-due'
+                                                            : 'customers-balance-paid'
                                                     }
                                                 >
-                                                    Edit
-                                                </button>
+                                                    {formatCurrency(remaining)}
+                                                </strong>
+                                            </td>
 
-                                                <button
-                                                    type="button"
-                                                    className="customers-row-button customers-row-button-danger"
-                                                    onClick={() =>
-                                                        handleDelete(customer)
-                                                    }
-                                                    disabled={
-                                                        String(deletingId) ===
+                                            <td>
+                                                <span className="customers-notes-cell">
+                                                    {customer.notes || '—'}
+                                                </span>
+                                            </td>
+
+                                            <td>
+                                                <div className="customers-row-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="customers-row-button"
+                                                        onClick={() =>
+                                                            openEditForm(customer)
+                                                        }
+                                                    >
+                                                        Düzenle
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        className="customers-row-button customers-row-button-danger"
+                                                        onClick={() =>
+                                                            handleDelete(customer)
+                                                        }
+                                                        disabled={
+                                                            String(deletingId) ===
+                                                            String(customer.id)
+                                                        }
+                                                    >
+                                                        {String(deletingId) ===
                                                         String(customer.id)
-                                                    }
-                                                >
-                                                    {String(deletingId) ===
-                                                    String(customer.id)
-                                                        ? 'Deleting...'
-                                                        : 'Delete'}
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                                                            ? 'Siliniyor...'
+                                                            : 'Sil'}
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     </div>
