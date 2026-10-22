@@ -12,9 +12,14 @@ const EMPTY_FORM = {
     notes: '',
 }
 
-const currencyFormatter = new Intl.NumberFormat('tr-TR', {
+const currencyFormatter = new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'TRY',
+})
+
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
 })
 
 function formatCurrency(value) {
@@ -23,6 +28,26 @@ function formatCurrency(value) {
     return currencyFormatter.format(
         Number.isFinite(amount) ? amount : 0
     )
+}
+
+function formatDate(value) {
+    if (!value) return 'Not provided'
+
+    const date = new Date(value)
+
+    return Number.isNaN(date.getTime())
+        ? 'Not provided'
+        : dateFormatter.format(date)
+}
+
+function formatValue(value) {
+    return value === null || value === undefined || value === ''
+        ? 'Not provided'
+        : String(value)
+}
+
+function getInitial(name) {
+    return String(name ?? '?').trim().charAt(0).toLocaleUpperCase('en-GB') || '?'
 }
 
 function Customers() {
@@ -42,6 +67,7 @@ function Customers() {
 
     const [showForm, setShowForm] = useState(false)
     const [editingCustomerId, setEditingCustomerId] = useState(null)
+    const [selectedCustomer, setSelectedCustomer] = useState(null)
     const [form, setForm] = useState({ ...EMPTY_FORM })
 
     const request = useCallback(async (path, options = {}) => {
@@ -104,9 +130,7 @@ function Customers() {
                     : []
             )
         } catch (error) {
-            setPageError(
-                error.message || 'Could not load customers.'
-            )
+            setPageError(error.message || 'Could not load customers.')
         } finally {
             setLoading(false)
         }
@@ -117,9 +141,7 @@ function Customers() {
     }, [loadCustomers])
 
     useEffect(() => {
-        if (!successMessage) {
-            return
-        }
+        if (!successMessage) return
 
         const timeout = setTimeout(() => {
             setSuccessMessage('')
@@ -128,10 +150,29 @@ function Customers() {
         return () => clearTimeout(timeout)
     }, [successMessage])
 
+    useEffect(() => {
+        const modalOpen = showForm || selectedCustomer !== null
+
+        if (!modalOpen) return
+
+        function handleKeyDown(event) {
+            if (event.key === 'Escape' && !saving) {
+                setShowForm(false)
+                setEditingCustomerId(null)
+                setFormError('')
+                setSelectedCustomer(null)
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown)
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [showForm, selectedCustomer, saving])
+
     const filteredCustomers = useMemo(() => {
-        const query = searchTerm
-            .trim()
-            .toLocaleLowerCase('tr-TR')
+        const query = searchTerm.trim().toLocaleLowerCase('en-GB')
 
         const searchableFields = [
             'name',
@@ -141,14 +182,12 @@ function Customers() {
         ]
 
         const result = customers.filter((customer) => {
-            if (!query) {
-                return true
-            }
+            if (!query) return true
 
             const searchableText = searchableFields
                 .map((field) => customer[field] ?? '')
                 .join(' ')
-                .toLocaleLowerCase('tr-TR')
+                .toLocaleLowerCase('en-GB')
 
             return searchableText.includes(query)
         })
@@ -157,14 +196,14 @@ function Customers() {
             if (sortBy === 'name-asc') {
                 return String(a.name ?? '').localeCompare(
                     String(b.name ?? ''),
-                    'tr-TR'
+                    'en'
                 )
             }
 
             if (sortBy === 'name-desc') {
                 return String(b.name ?? '').localeCompare(
                     String(a.name ?? ''),
-                    'tr-TR'
+                    'en'
                 )
             }
 
@@ -189,14 +228,17 @@ function Customers() {
     }, [form.total_amount, form.amount_paid])
 
     function openCreateForm() {
+        setSelectedCustomer(null)
         setEditingCustomerId(null)
         setForm({ ...EMPTY_FORM })
         setFormError('')
+        setPageError('')
         setSuccessMessage('')
         setShowForm(true)
     }
 
     function openEditForm(customer) {
+        setSelectedCustomer(null)
         setEditingCustomerId(customer.id)
 
         setForm({
@@ -209,14 +251,13 @@ function Customers() {
         })
 
         setFormError('')
+        setPageError('')
         setSuccessMessage('')
         setShowForm(true)
     }
 
     function closeForm() {
-        if (saving) {
-            return
-        }
+        if (saving) return
 
         setShowForm(false)
         setEditingCustomerId(null)
@@ -242,7 +283,6 @@ function Customers() {
         setSuccessMessage('')
 
         const isEditing = editingCustomerId !== null
-
         const totalAmount = Number(form.total_amount)
         const amountPaid = Number(form.amount_paid)
 
@@ -262,9 +302,7 @@ function Customers() {
         }
 
         if (amountPaid > totalAmount) {
-            setFormError(
-                'Amount paid cannot exceed the total amount.'
-            )
+            setFormError('Amount paid cannot exceed the total amount.')
             setSaving(false)
             return
         }
@@ -293,8 +331,7 @@ function Customers() {
                 setCustomers((current) => {
                     if (isEditing) {
                         return current.map((customer) =>
-                            String(customer.id) ===
-                            String(data.customer.id)
+                            String(customer.id) === String(data.customer.id)
                                 ? data.customer
                                 : customer
                         )
@@ -316,9 +353,7 @@ function Customers() {
                     : 'Customer created successfully.'
             )
         } catch (error) {
-            setFormError(
-                error.message || 'Could not save customer.'
-            )
+            setFormError(error.message || 'Could not save customer.')
         } finally {
             setSaving(false)
         }
@@ -329,9 +364,7 @@ function Customers() {
             `Delete ${customer.name}? This action cannot be undone.`
         )
 
-        if (!confirmed) {
-            return
-        }
+        if (!confirmed) return
 
         setDeletingId(customer.id)
         setPageError('')
@@ -349,13 +382,29 @@ function Customers() {
                 )
             )
 
+            if (
+                selectedCustomer &&
+                String(selectedCustomer.id) === String(customer.id)
+            ) {
+                setSelectedCustomer(null)
+            }
+
             setSuccessMessage('Customer deleted successfully.')
         } catch (error) {
-            setPageError(
-                error.message || 'Could not delete customer.'
-            )
+            setPageError(error.message || 'Could not delete customer.')
         } finally {
             setDeletingId(null)
+        }
+    }
+
+    function openCustomerDetails(customer) {
+        setShowForm(false)
+        setSelectedCustomer(customer)
+    }
+
+    function handleModalBackdropClick(event, closeModal) {
+        if (event.target === event.currentTarget) {
+            closeModal()
         }
     }
 
@@ -401,144 +450,6 @@ function Customers() {
                 </div>
             )}
 
-            {showForm && (
-                <section className="customers-panel customers-form-panel">
-                    <div className="customers-panel-heading">
-                        <div>
-                            <h2>
-                                {editingCustomerId !== null
-                                    ? 'Edit customer'
-                                    : 'Add a customer'}
-                            </h2>
-
-                            <p>
-                                Fields marked with * are required.
-                            </p>
-                        </div>
-                    </div>
-
-                    <form
-                        className="customers-form"
-                        onSubmit={handleSubmit}
-                    >
-                        <label>
-                            Full name *
-                            <input
-                                name="name"
-                                value={form.name}
-                                onChange={handleFormChange}
-                                maxLength={150}
-                                required
-                                autoFocus
-                                placeholder="e.g. Ahmet Yılmaz"
-                            />
-                        </label>
-
-                        <label>
-                            Phone
-                            <input
-                                type="tel"
-                                name="phone"
-                                value={form.phone}
-                                onChange={handleFormChange}
-                                maxLength={30}
-                                placeholder="Phone number"
-                            />
-                        </label>
-
-                        <label>
-                            Address
-                            <input
-                                name="address"
-                                value={form.address}
-                                onChange={handleFormChange}
-                                maxLength={2000}
-                                placeholder="Customer address"
-                            />
-                        </label>
-
-                        <label>
-                            Total amount (₺)
-                            <input
-                                type="number"
-                                name="total_amount"
-                                value={form.total_amount}
-                                onChange={handleFormChange}
-                                min="0"
-                                max="9999999999.99"
-                                step="0.01"
-                                required
-                            />
-                        </label>
-
-                        <label>
-                            Amount paid (₺)
-                            <input
-                                type="number"
-                                name="amount_paid"
-                                value={form.amount_paid}
-                                onChange={handleFormChange}
-                                min="0"
-                                max="9999999999.99"
-                                step="0.01"
-                                required
-                            />
-                        </label>
-
-                        <div className="customers-balance-preview">
-                            <span>Remaining balance</span>
-                            <strong>
-                                {formatCurrency(formRemainingBalance)}
-                            </strong>
-                        </div>
-
-                        <label className="customers-notes-field">
-                            Notes
-                            <textarea
-                                name="notes"
-                                value={form.notes}
-                                onChange={handleFormChange}
-                                maxLength={10000}
-                                rows={4}
-                                placeholder="Additional details and notes"
-                            />
-                        </label>
-
-                        {formError && (
-                            <p
-                                className="customers-form-error"
-                                role="alert"
-                            >
-                                {formError}
-                            </p>
-                        )}
-
-                        <div className="customers-form-actions">
-                            <button
-                                type="button"
-                                className="customers-secondary-button"
-                                onClick={closeForm}
-                                disabled={saving}
-                            >
-                                Cancel
-                            </button>
-
-                            <button
-                                type="submit"
-                                className="customers-primary-button"
-                                disabled={saving}
-                            >
-                                {saving
-                                    ? 'Saving...'
-                                    : editingCustomerId !== null
-                                        ? 'Save changes'
-                                        : 'Create customer'}
-                            </button>
-                        </div>
-                    </form>
-                </section>
-            )}
-
             <section className="customers-panel">
                 <div className="customers-panel-heading">
                     <div>
@@ -550,9 +461,7 @@ function Customers() {
 
                     <span className="customers-count">
                         {filteredCustomers.length}{' '}
-                        {filteredCustomers.length === 1
-                            ? 'customer'
-                            : 'customers'}
+                        {filteredCustomers.length === 1 ? 'customer' : 'customers'}
                     </span>
                 </div>
 
@@ -563,9 +472,7 @@ function Customers() {
                         <input
                             type="search"
                             value={searchTerm}
-                            onChange={(event) =>
-                                setSearchTerm(event.target.value)
-                            }
+                            onChange={(event) => setSearchTerm(event.target.value)}
                             placeholder="Search name, phone, address, notes..."
                             aria-label="Search customers"
                         />
@@ -586,9 +493,7 @@ function Customers() {
 
                         <select
                             value={sortBy}
-                            onChange={(event) =>
-                                setSortBy(event.target.value)
-                            }
+                            onChange={(event) => setSortBy(event.target.value)}
                         >
                             <option value="newest">Newest first</option>
                             <option value="oldest">Oldest first</option>
@@ -618,17 +523,12 @@ function Customers() {
                     </div>
                 ) : filteredCustomers.length === 0 ? (
                     <div className="customers-empty-state">
-                        <div
-                            className="customers-empty-icon"
-                            aria-hidden="true"
-                        >
+                        <div className="customers-empty-icon" aria-hidden="true">
                             ♙
                         </div>
 
                         <h3>
-                            {searchTerm
-                                ? 'No matching customers'
-                                : 'No customers yet'}
+                            {searchTerm ? 'No matching customers' : 'No customers yet'}
                         </h3>
 
                         <p>
@@ -652,54 +552,68 @@ function Customers() {
                         <table className="customers-table">
                             <thead>
                                 <tr>
-                                    <th>Ad Soyad</th>
-                                    <th>Telefon</th>
-                                    <th>Adres</th>
-                                    <th>Toplam Tutar</th>
-                                    <th>Yapılan Ödeme</th>
-                                    <th>Kalan Borç</th>
-                                    <th>Notlar</th>
-                                    <th>İşlemler</th>
+                                    <th>Full Name</th>
+                                    <th>Phone</th>
+                                    <th>Address</th>
+                                    <th>Total Amount</th>
+                                    <th>Amount Paid</th>
+                                    <th>Remaining Balance</th>
+                                    <th>Notes</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
 
                             <tbody>
                                 {filteredCustomers.map((customer) => {
-                                    const total = Number(
-                                        customer.total_amount ?? 0
-                                    )
-
-                                    const paid = Number(
-                                        customer.amount_paid ?? 0
-                                    )
-
+                                    const total = Number(customer.total_amount ?? 0)
+                                    const paid = Number(customer.amount_paid ?? 0)
                                     const remaining = Number(
-                                        customer.remaining_balance ??
-                                        total - paid
+                                        customer.remaining_balance ?? total - paid
                                     )
 
                                     return (
                                         <tr key={customer.id}>
                                             <td>
-                                                <div className="customers-person">
+                                                <button
+                                                    type="button"
+                                                    className="customers-person customers-person-trigger"
+                                                    onClick={() => openCustomerDetails(customer)}
+                                                    title={`View ${customer.name}`}
+                                                >
                                                     <span
                                                         className="customers-avatar"
                                                         aria-hidden="true"
                                                     >
-                                                        {String(customer.name ?? '?')
-                                                            .trim()
-                                                            .charAt(0)
-                                                            .toLocaleUpperCase('tr-TR')}
+                                                        {getInitial(customer.name)}
                                                     </span>
 
-                                                    <span className="customers-person-name">
+                                                    <span
+                                                        className="customers-person-name customers-truncated"
+                                                        title={customer.name || ''}
+                                                    >
                                                         {customer.name}
                                                     </span>
-                                                </div>
+                                                </button>
                                             </td>
 
-                                            <td>{customer.phone || '—'}</td>
-                                            <td>{customer.address || '—'}</td>
+                                            <td>
+                                                <span
+                                                    className="customers-truncated customers-table-phone"
+                                                    title={customer.phone || ''}
+                                                >
+                                                    {customer.phone || '—'}
+                                                </span>
+                                            </td>
+
+                                            <td>
+                                                <span
+                                                    className="customers-truncated customers-table-address"
+                                                    title={customer.address || ''}
+                                                >
+                                                    {customer.address || '—'}
+                                                </span>
+                                            </td>
+
                                             <td>{formatCurrency(total)}</td>
                                             <td>{formatCurrency(paid)}</td>
 
@@ -716,7 +630,10 @@ function Customers() {
                                             </td>
 
                                             <td>
-                                                <span className="customers-notes-cell">
+                                                <span
+                                                    className="customers-notes-cell customers-truncated"
+                                                    title={customer.notes || ''}
+                                                >
                                                     {customer.notes || '—'}
                                                 </span>
                                             </td>
@@ -726,28 +643,22 @@ function Customers() {
                                                     <button
                                                         type="button"
                                                         className="customers-row-button"
-                                                        onClick={() =>
-                                                            openEditForm(customer)
-                                                        }
+                                                        onClick={() => openEditForm(customer)}
                                                     >
-                                                        Düzenle
+                                                        Edit
                                                     </button>
 
                                                     <button
                                                         type="button"
                                                         className="customers-row-button customers-row-button-danger"
-                                                        onClick={() =>
-                                                            handleDelete(customer)
-                                                        }
+                                                        onClick={() => handleDelete(customer)}
                                                         disabled={
-                                                            String(deletingId) ===
-                                                            String(customer.id)
+                                                            String(deletingId) === String(customer.id)
                                                         }
                                                     >
-                                                        {String(deletingId) ===
-                                                        String(customer.id)
-                                                            ? 'Siliniyor...'
-                                                            : 'Sil'}
+                                                        {String(deletingId) === String(customer.id)
+                                                            ? 'Deleting...'
+                                                            : 'Delete'}
                                                     </button>
                                                 </div>
                                             </td>
@@ -763,6 +674,314 @@ function Customers() {
             <p className="customers-page-note">
                 Showing {filteredCustomers.length} of {customers.length} customers.
             </p>
+
+            {showForm && (
+                <div
+                    className="customers-modal-backdrop"
+                    onMouseDown={(event) =>
+                        handleModalBackdropClick(event, closeForm)
+                    }
+                >
+                    <section
+                        className="customers-modal customers-form-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="customers-form-modal-title"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="customers-modal-header">
+                            <div>
+                                <p className="customers-modal-eyebrow">
+                                    CUSTOMER RECORD
+                                </p>
+
+                                <h2 id="customers-form-modal-title">
+                                    {editingCustomerId !== null
+                                        ? 'Edit customer'
+                                        : 'Add a customer'}
+                                </h2>
+
+                                <p>
+                                    Fields marked with * are required.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="customers-modal-close"
+                                onClick={closeForm}
+                                disabled={saving}
+                                aria-label="Close customer form"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <form
+                            className="customers-form"
+                            onSubmit={handleSubmit}
+                        >
+                            <label>
+                                Full name *
+                                <input
+                                    name="name"
+                                    value={form.name}
+                                    onChange={handleFormChange}
+                                    maxLength={150}
+                                    required
+                                    autoFocus
+                                    placeholder="e.g. Alex Morgan"
+                                />
+                            </label>
+
+                            <label>
+                                Phone
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    value={form.phone}
+                                    onChange={handleFormChange}
+                                    maxLength={30}
+                                    placeholder="Phone number"
+                                />
+                            </label>
+
+                            <label className="customers-form-full-width">
+                                Address
+                                <input
+                                    name="address"
+                                    value={form.address}
+                                    onChange={handleFormChange}
+                                    maxLength={2000}
+                                    placeholder="Customer address"
+                                />
+                            </label>
+
+                            <label>
+                                Total amount (TRY)
+                                <input
+                                    type="number"
+                                    name="total_amount"
+                                    value={form.total_amount}
+                                    onChange={handleFormChange}
+                                    min="0"
+                                    max="9999999999.99"
+                                    step="0.01"
+                                    required
+                                />
+                            </label>
+
+                            <label>
+                                Amount paid (TRY)
+                                <input
+                                    type="number"
+                                    name="amount_paid"
+                                    value={form.amount_paid}
+                                    onChange={handleFormChange}
+                                    min="0"
+                                    max="9999999999.99"
+                                    step="0.01"
+                                    required
+                                />
+                            </label>
+
+                            <div className="customers-balance-preview">
+                                <span>Remaining balance</span>
+                                <strong
+                                    className={
+                                        formRemainingBalance > 0
+                                            ? 'customers-balance-due'
+                                            : 'customers-balance-paid'
+                                    }
+                                >
+                                    {formatCurrency(formRemainingBalance)}
+                                </strong>
+                            </div>
+
+                            <label className="customers-notes-field">
+                                Notes
+                                <textarea
+                                    name="notes"
+                                    value={form.notes}
+                                    onChange={handleFormChange}
+                                    maxLength={10000}
+                                    rows={4}
+                                    placeholder="Additional details and notes"
+                                />
+                            </label>
+
+                            {formError && (
+                                <p className="customers-form-error" role="alert">
+                                    {formError}
+                                </p>
+                            )}
+
+                            <div className="customers-form-actions">
+                                <button
+                                    type="button"
+                                    className="customers-secondary-button"
+                                    onClick={closeForm}
+                                    disabled={saving}
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="submit"
+                                    className="customers-primary-button"
+                                    disabled={saving}
+                                >
+                                    {saving
+                                        ? 'Saving...'
+                                        : editingCustomerId !== null
+                                            ? 'Save changes'
+                                            : 'Create customer'}
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+                </div>
+            )}
+
+            {selectedCustomer && (
+                <div
+                    className="customers-modal-backdrop"
+                    onMouseDown={(event) =>
+                        handleModalBackdropClick(
+                            event,
+                            () => setSelectedCustomer(null)
+                        )
+                    }
+                >
+                    <section
+                        className="customers-modal customers-details-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="customers-details-modal-title"
+                        onMouseDown={(event) => event.stopPropagation()}
+                    >
+                        <div className="customers-modal-header">
+                            <div className="customers-details-person">
+                                <span className="customers-avatar customers-avatar-large">
+                                    {getInitial(selectedCustomer.name)}
+                                </span>
+
+                                <div>
+                                    <p className="customers-modal-eyebrow">
+                                        CUSTOMER DETAILS
+                                    </p>
+
+                                    <h2 id="customers-details-modal-title">
+                                        {selectedCustomer.name}
+                                    </h2>
+
+                                    <p>
+                                        Customer record and payment overview
+                                    </p>
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="customers-modal-close"
+                                onClick={() => setSelectedCustomer(null)}
+                                aria-label="Close customer details"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="customers-details-balance">
+                            <div>
+                                <span>Total amount</span>
+                                <strong>
+                                    {formatCurrency(selectedCustomer.total_amount)}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Amount paid</span>
+                                <strong>
+                                    {formatCurrency(selectedCustomer.amount_paid)}
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Remaining balance</span>
+                                <strong
+                                    className={
+                                        Number(selectedCustomer.remaining_balance ??
+                                            Number(selectedCustomer.total_amount ?? 0) -
+                                            Number(selectedCustomer.amount_paid ?? 0)) > 0
+                                            ? 'customers-balance-due'
+                                            : 'customers-balance-paid'
+                                    }
+                                >
+                                    {formatCurrency(
+                                        selectedCustomer.remaining_balance ??
+                                        Number(selectedCustomer.total_amount ?? 0) -
+                                        Number(selectedCustomer.amount_paid ?? 0)
+                                    )}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <div className="customers-details-grid">
+                            <div className="customers-detail-field">
+                                <span>Full name</span>
+                                <p>{formatValue(selectedCustomer.name)}</p>
+                            </div>
+
+                            <div className="customers-detail-field">
+                                <span>Phone</span>
+                                <p>{formatValue(selectedCustomer.phone)}</p>
+                            </div>
+
+                            <div className="customers-detail-field customers-detail-full-width">
+                                <span>Address</span>
+                                <p className="customers-detail-long-text">
+                                    {formatValue(selectedCustomer.address)}
+                                </p>
+                            </div>
+
+                            <div className="customers-detail-field customers-detail-full-width">
+                                <span>Notes</span>
+                                <p className="customers-detail-long-text">
+                                    {formatValue(selectedCustomer.notes)}
+                                </p>
+                            </div>
+
+                            <div className="customers-detail-field">
+                                <span>Created</span>
+                                <p>{formatDate(selectedCustomer.created_at)}</p>
+                            </div>
+
+                            <div className="customers-detail-field">
+                                <span>Last updated</span>
+                                <p>{formatDate(selectedCustomer.updated_at)}</p>
+                            </div>
+                        </div>
+
+                        <div className="customers-form-actions customers-details-actions">
+                            <button
+                                type="button"
+                                className="customers-secondary-button"
+                                onClick={() => setSelectedCustomer(null)}
+                            >
+                                Close
+                            </button>
+
+                            <button
+                                type="button"
+                                className="customers-primary-button"
+                                onClick={() => openEditForm(selectedCustomer)}
+                            >
+                                Edit customer
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            )}
         </section>
     )
 }
