@@ -580,12 +580,6 @@ function Customers() {
                                                     onClick={() => openCustomerDetails(customer)}
                                                     title={`View ${customer.name}`}
                                                 >
-                                                    <span
-                                                        className="customers-avatar"
-                                                        aria-hidden="true"
-                                                    >
-                                                        {getInitial(customer.name)}
-                                                    </span>
 
                                                     <span
                                                         className="customers-person-name customers-truncated"
@@ -862,9 +856,6 @@ function Customers() {
                     >
                         <div className="customers-modal-header">
                             <div className="customers-details-person">
-                                <span className="customers-avatar customers-avatar-large">
-                                    {getInitial(selectedCustomer.name)}
-                                </span>
 
                                 <div>
                                     <p className="customers-modal-eyebrow">

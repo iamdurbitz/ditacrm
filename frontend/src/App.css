@@ -1957,19 +1957,6 @@ a {
     min-width: 150px;
 }
 
-.customers-avatar {
-    display: grid;
-    flex: 0 0 34px;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    color: var(--blue-hover);
-    background: #EEF2FF;
-    font-size: 12px;
-    font-weight: 750;
-}
-
 .customers-person-name {
     color: var(--text);
     font-weight: 650;
@@ -2688,20 +2675,6 @@ a {
     min-width: 0;
 }
 
-.customers-avatar-large {
-    display: grid;
-    flex: 0 0 54px;
-    place-items: center;
-    width: 54px;
-    height: 54px;
-    border: 1px solid #D9E1FF;
-    border-radius: 16px;
-    color: var(--blue-hover);
-    background: #EEF2FF;
-    font-size: 20px;
-    font-weight: 750;
-}
-
 .customers-details-person > div {
     min-width: 0;
 }
@@ -2870,15 +2843,8 @@ a {
         gap: 12px;
     }
 
-    .customers-avatar-large {
-        flex-basis: 44px;
-        width: 44px;
-        height: 44px;
-        border-radius: 13px;
-        font-size: 17px;
-    }
-
-    .customers-details-person h2 {
+    
+.customers-details-person h2 {
         font-size: 18px;
     }
 
