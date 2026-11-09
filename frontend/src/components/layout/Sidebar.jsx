@@ -80,17 +80,6 @@ function Sidebar() {
                     Customers
                 </NavLink>
 
-                {userRole === 'OWNER' && (
-                    <NavLink
-                        to="/employees"
-                        className={({ isActive }) =>
-                            `dashboard-nav-item${isActive ? ' dashboard-nav-item--active' : ''}`
-                        }
-                    >
-                        Employees
-                    </NavLink>
-                )}
-
                 <NavLink
                     to="/products"
                     className={({ isActive }) =>

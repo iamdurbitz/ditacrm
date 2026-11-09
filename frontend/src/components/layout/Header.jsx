@@ -9,10 +9,6 @@ const PAGE_INFO = {
         title: 'Customers',
         eyebrow: 'WORKSPACE',
     },
-    '/employees': {
-        title: 'Employees',
-        eyebrow: 'WORKSPACE',
-    },
     '/products': {
         title: 'Products',
         eyebrow: 'WORKSPACE',

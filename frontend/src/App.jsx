@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Dashboard from './pages/Dashboard.jsx'
-import Employees from './pages/Employees.jsx'
 import Customers from './pages/Customers.jsx'
 import AppLayout from './components/layout/AppLayout.jsx'
 import './App.css'
@@ -30,11 +29,6 @@ function App() {
                     <Route
                         path="/customers"
                         element={<Customers />}
-                    />
-
-                    <Route
-                        path="/employees"
-                        element={<Employees />}
                     />
                 </Route>
 
