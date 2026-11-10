@@ -14,7 +14,7 @@ const EMPTY_FORM = {
 
 const currencyFormatter = new Intl.NumberFormat('en-GB', {
     style: 'currency',
-    currency: 'TRY',
+    currency: 'USD',
 })
 
 const dateFormatter = new Intl.DateTimeFormat('en-GB', {
