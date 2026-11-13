@@ -32,7 +32,6 @@ function parseAmount(value, fieldName, defaultValue = 0) {
 
     const normalizedValue = String(value).trim()
 
-    // Allow up to 10 integer digits and 2 decimal places.
     if (!/^\d{1,10}(\.\d{1,2})?$/.test(normalizedValue)) {
         return {
             error: `${fieldName} must be a non-negative amount with up to 2 decimal places.`
@@ -81,6 +80,119 @@ export async function getCustomers(req, res, next) {
     try {
         const businessId = getBusinessId(req)
 
+        const rawPage = req.query.page ?? "1"
+        const rawLimit = req.query.limit ?? "20"
+        const search = req.query.search ?? ""
+        const sortBy = req.query.sortBy ?? "newest"
+
+        if (
+            typeof rawPage !== "string" ||
+            !/^[1-9]\d*$/.test(rawPage)
+        ) {
+            return res.status(400).json({
+                error: "Invalid page number."
+            })
+        }
+
+        const page = Number(rawPage)
+
+        if (!Number.isSafeInteger(page)) {
+            return res.status(400).json({
+                error: "Invalid page number."
+            })
+        }
+
+        if (
+            typeof rawLimit !== "string" ||
+            !/^\d+$/.test(rawLimit)
+        ) {
+            return res.status(400).json({
+                error: "Invalid page limit."
+            })
+        }
+
+        const limit = Number(rawLimit)
+        const allowedLimits = [10, 20, 50, 100]
+
+        if (!allowedLimits.includes(limit)) {
+            return res.status(400).json({
+                error: "Invalid page limit."
+            })
+        }
+
+        if (
+            typeof search !== "string" ||
+            search.length > 200
+        ) {
+            return res.status(400).json({
+                error: "Invalid search query."
+            })
+        }
+
+        if (
+            typeof sortBy !== "string"
+        ) {
+            return res.status(400).json({
+                error: "Invalid sorting option."
+            })
+        }
+
+        const sortOptions = {
+            newest: "created_at DESC",
+            oldest: "created_at ASC",
+            "name-asc": "name ASC",
+            "name-desc": "name DESC"
+        }
+
+        if (!sortOptions[sortBy]) {
+            return res.status(400).json({
+                error: "Invalid sorting option."
+            })
+        }
+
+        const offset = (page - 1) * limit
+
+        if (!Number.isSafeInteger(offset)) {
+            return res.status(400).json({
+                error: "Requested page is too large."
+            })
+        }
+
+        const trimmedSearch = search.trim()
+
+        const searchCondition = trimmedSearch
+            ? `AND (
+                name ILIKE $2 OR
+                phone ILIKE $2 OR
+                address ILIKE $2 OR
+                notes ILIKE $2
+            )`
+            : ""
+
+        const queryParams = trimmedSearch
+            ? [businessId, `%${trimmedSearch}%`]
+            : [businessId]
+
+        // Count matching customers
+        const countResult = await pool.query(
+            `SELECT COUNT(*) AS total
+             FROM customers
+             WHERE business_id = $1
+             ${searchCondition}`,
+            queryParams
+        )
+
+        const totalItems = Number(countResult.rows[0].total)
+        const totalPages = Math.ceil(totalItems / limit)
+
+        // Keep the requested page within valid boundaries
+        const currentPage = totalPages === 0
+            ? 1
+            : Math.min(page, totalPages)
+
+        const currentOffset = (currentPage - 1) * limit
+
+        // Fetch only the requested page
         const result = await pool.query(
             `SELECT
                 id,
@@ -95,12 +207,23 @@ export async function getCustomers(req, res, next) {
                 updated_at
              FROM customers
              WHERE business_id = $1
-             ORDER BY created_at DESC`,
-            [businessId]
+             ${searchCondition}
+             ORDER BY ${sortOptions[sortBy]}, id DESC
+             LIMIT $${queryParams.length + 1}
+             OFFSET $${queryParams.length + 2}`,
+            [...queryParams, limit, currentOffset]
         )
 
         res.json({
-            customers: result.rows
+            customers: result.rows,
+            pagination: {
+                currentPage,
+                limit,
+                totalItems,
+                totalPages,
+                hasNextPage: currentPage < totalPages,
+                hasPreviousPage: currentPage > 1
+            }
         })
     } catch (error) {
         next(error)

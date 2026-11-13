@@ -50,6 +50,37 @@ function getInitial(name) {
     return String(name ?? '?').trim().charAt(0).toLocaleUpperCase('en-GB') || '?'
 }
 
+// Generate compact pagination numbers
+function getPageNumbers(totalPages, currentPage) {
+    if (totalPages <= 7) {
+        return Array.from(
+            { length: totalPages },
+            (_, index) => index + 1
+        )
+    }
+
+    const pages = [1]
+
+    if (currentPage > 3) {
+        pages.push('...')
+    }
+
+    const start = Math.max(2, currentPage - 1)
+    const end = Math.min(totalPages - 1, currentPage + 1)
+
+    for (let page = start; page <= end; page++) {
+        pages.push(page)
+    }
+
+    if (currentPage < totalPages - 2) {
+        pages.push('...')
+    }
+
+    pages.push(totalPages)
+
+    return pages
+}
+
 function Customers() {
     const navigate = useNavigate()
 
@@ -64,6 +95,18 @@ function Customers() {
 
     const [searchTerm, setSearchTerm] = useState('')
     const [sortBy, setSortBy] = useState('newest')
+
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(20)
+
+    const [pagination, setPagination] = useState({
+        currentPage: 1,
+        limit: 20,
+        totalItems: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false
+    })
 
     const [showForm, setShowForm] = useState(false)
     const [editingCustomerId, setEditingCustomerId] = useState(null)
@@ -115,6 +158,7 @@ function Customers() {
         return data
     }, [navigate])
 
+    // Load customers from the backend
     const loadCustomers = useCallback(async () => {
         setLoading(true)
         setPageError('')
@@ -122,19 +166,45 @@ function Customers() {
         try {
             await request('/protected')
 
-            const data = await request('/customers')
+            const params = new URLSearchParams({
+                page: String(currentPage),
+                limit: String(pageSize),
+                search: searchTerm.trim(),
+                sortBy
+            })
+
+            const data = await request(
+                `/customers?${params.toString()}`
+            )
 
             setCustomers(
                 Array.isArray(data?.customers)
                     ? data.customers
                     : []
             )
+
+            const newPagination = data?.pagination
+
+            if (newPagination) {
+                setPagination(newPagination)
+
+                // Backend may move the user to the last valid page
+                if (newPagination.currentPage !== currentPage) {
+                    setCurrentPage(newPagination.currentPage)
+                }
+            }
         } catch (error) {
             setPageError(error.message || 'Could not load customers.')
         } finally {
             setLoading(false)
         }
-    }, [request])
+    }, [
+        request,
+        currentPage,
+        pageSize,
+        searchTerm,
+        sortBy
+    ])
 
     useEffect(() => {
         loadCustomers()
@@ -170,51 +240,6 @@ function Customers() {
             document.removeEventListener('keydown', handleKeyDown)
         }
     }, [showForm, selectedCustomer, saving])
-
-    const filteredCustomers = useMemo(() => {
-        const query = searchTerm.trim().toLocaleLowerCase('en-GB')
-
-        const searchableFields = [
-            'name',
-            'phone',
-            'address',
-            'notes',
-        ]
-
-        const result = customers.filter((customer) => {
-            if (!query) return true
-
-            const searchableText = searchableFields
-                .map((field) => customer[field] ?? '')
-                .join(' ')
-                .toLocaleLowerCase('en-GB')
-
-            return searchableText.includes(query)
-        })
-
-        return result.sort((a, b) => {
-            if (sortBy === 'name-asc') {
-                return String(a.name ?? '').localeCompare(
-                    String(b.name ?? ''),
-                    'en'
-                )
-            }
-
-            if (sortBy === 'name-desc') {
-                return String(b.name ?? '').localeCompare(
-                    String(a.name ?? ''),
-                    'en'
-                )
-            }
-
-            const dateA = new Date(a.created_at ?? 0).getTime()
-            const dateB = new Date(b.created_at ?? 0).getTime()
-
-            return sortBy === 'oldest'
-                ? dateA - dateB
-                : dateB - dateA
-        })
-    }, [customers, searchTerm, sortBy])
 
     const formRemainingBalance = useMemo(() => {
         const total = Number(form.total_amount || 0)
@@ -317,7 +342,7 @@ function Customers() {
         }
 
         try {
-            const data = await request(
+            await request(
                 isEditing
                     ? `/customers/${encodeURIComponent(editingCustomerId)}`
                     : '/customers',
@@ -326,22 +351,6 @@ function Customers() {
                     body: JSON.stringify(payload),
                 }
             )
-
-            if (data?.customer) {
-                setCustomers((current) => {
-                    if (isEditing) {
-                        return current.map((customer) =>
-                            String(customer.id) === String(data.customer.id)
-                                ? data.customer
-                                : customer
-                        )
-                    }
-
-                    return [data.customer, ...current]
-                })
-            } else {
-                await loadCustomers()
-            }
 
             setShowForm(false)
             setEditingCustomerId(null)
@@ -352,6 +361,13 @@ function Customers() {
                     ? 'Customer updated successfully.'
                     : 'Customer created successfully.'
             )
+
+            // New customers are sorted by newest first
+            if (!isEditing && currentPage !== 1) {
+                setCurrentPage(1)
+            } else {
+                await loadCustomers()
+            }
         } catch (error) {
             setFormError(error.message || 'Could not save customer.')
         } finally {
@@ -376,12 +392,6 @@ function Customers() {
                 { method: 'DELETE' }
             )
 
-            setCustomers((current) =>
-                current.filter(
-                    (item) => String(item.id) !== String(customer.id)
-                )
-            )
-
             if (
                 selectedCustomer &&
                 String(selectedCustomer.id) === String(customer.id)
@@ -390,6 +400,14 @@ function Customers() {
             }
 
             setSuccessMessage('Customer deleted successfully.')
+
+            // If the deleted customer was the only record on this page,
+            // move to the previous page.
+            if (customers.length === 1 && currentPage > 1) {
+                setCurrentPage((page) => page - 1)
+            } else {
+                await loadCustomers()
+            }
         } catch (error) {
             setPageError(error.message || 'Could not delete customer.')
         } finally {
@@ -407,6 +425,20 @@ function Customers() {
             closeModal()
         }
     }
+
+    const pageNumbers = getPageNumbers(
+        pagination.totalPages,
+        pagination.currentPage
+    )
+
+    const firstItem = pagination.totalItems === 0
+        ? 0
+        : (pagination.currentPage - 1) * pagination.limit + 1
+
+    const lastItem = Math.min(
+        pagination.currentPage * pagination.limit,
+        pagination.totalItems
+    )
 
     return (
         <section className="customers-content">
@@ -460,8 +492,8 @@ function Customers() {
                     </div>
 
                     <span className="customers-count">
-                        {filteredCustomers.length}{' '}
-                        {filteredCustomers.length === 1 ? 'customer' : 'customers'}
+                        {pagination.totalItems}{' '}
+                        {pagination.totalItems === 1 ? 'customer' : 'customers'}
                     </span>
                 </div>
 
@@ -472,7 +504,10 @@ function Customers() {
                         <input
                             type="search"
                             value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onChange={(event) => {
+                                setSearchTerm(event.target.value)
+                                setCurrentPage(1)
+                            }}
                             placeholder="Search name, phone, address, notes..."
                             aria-label="Search customers"
                         />
@@ -480,7 +515,10 @@ function Customers() {
                         {searchTerm && (
                             <button
                                 type="button"
-                                onClick={() => setSearchTerm('')}
+                                onClick={() => {
+                                    setSearchTerm('')
+                                    setCurrentPage(1)
+                                }}
                                 aria-label="Clear search"
                             >
                                 ×
@@ -493,7 +531,10 @@ function Customers() {
 
                         <select
                             value={sortBy}
-                            onChange={(event) => setSortBy(event.target.value)}
+                            onChange={(event) => {
+                                setSortBy(event.target.value)
+                                setCurrentPage(1)
+                            }}
                         >
                             <option value="newest">Newest first</option>
                             <option value="oldest">Oldest first</option>
@@ -521,14 +562,16 @@ function Customers() {
                         <h3>Loading customers...</h3>
                         <p>Getting your customer records.</p>
                     </div>
-                ) : filteredCustomers.length === 0 ? (
+                ) : customers.length === 0 ? (
                     <div className="customers-empty-state">
                         <div className="customers-empty-icon" aria-hidden="true">
                             ♙
                         </div>
 
                         <h3>
-                            {searchTerm ? 'No matching customers' : 'No customers yet'}
+                            {searchTerm
+                                ? 'No matching customers'
+                                : 'No customers yet'}
                         </h3>
 
                         <p>
@@ -548,126 +591,205 @@ function Customers() {
                         )}
                     </div>
                 ) : (
-                    <div className="customers-table-wrapper">
-                        <table className="customers-table">
-                            <thead>
-                                <tr>
-                                    <th>Full Name</th>
-                                    <th>Phone</th>
-                                    <th>Address</th>
-                                    <th>Total Amount</th>
-                                    <th>Amount Paid</th>
-                                    <th>Remaining Balance</th>
-                                    <th>Notes</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
+                    <>
+                        <div className="customers-table-wrapper">
+                            <table className="customers-table">
+                                <thead>
+                                    <tr>
+                                        <th>Full Name</th>
+                                        <th>Phone</th>
+                                        <th>Address</th>
+                                        <th>Total Amount</th>
+                                        <th>Amount Paid</th>
+                                        <th>Remaining Balance</th>
+                                        <th>Notes</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
 
-                            <tbody>
-                                {filteredCustomers.map((customer) => {
-                                    const total = Number(customer.total_amount ?? 0)
-                                    const paid = Number(customer.amount_paid ?? 0)
-                                    const remaining = Number(
-                                        customer.remaining_balance ?? total - paid
-                                    )
+                                <tbody>
+                                    {customers.map((customer) => {
+                                        const total = Number(customer.total_amount ?? 0)
+                                        const paid = Number(customer.amount_paid ?? 0)
+                                        const remaining = Number(
+                                            customer.remaining_balance ?? total - paid
+                                        )
 
-                                    return (
-                                        <tr key={customer.id}>
-                                            <td>
-                                                <button
-                                                    type="button"
-                                                    className="customers-person customers-person-trigger"
-                                                    onClick={() => openCustomerDetails(customer)}
-                                                    title={`View ${customer.name}`}
-                                                >
-
-                                                    <span
-                                                        className="customers-person-name customers-truncated"
-                                                        title={customer.name || ''}
-                                                    >
-                                                        {customer.name}
-                                                    </span>
-                                                </button>
-                                            </td>
-
-                                            <td>
-                                                <span
-                                                    className="customers-truncated customers-table-phone"
-                                                    title={customer.phone || ''}
-                                                >
-                                                    {customer.phone || '—'}
-                                                </span>
-                                            </td>
-
-                                            <td>
-                                                <span
-                                                    className="customers-truncated customers-table-address"
-                                                    title={customer.address || ''}
-                                                >
-                                                    {customer.address || '—'}
-                                                </span>
-                                            </td>
-
-                                            <td>{formatCurrency(total)}</td>
-                                            <td>{formatCurrency(paid)}</td>
-
-                                            <td>
-                                                <strong
-                                                    className={
-                                                        remaining > 0
-                                                            ? 'customers-balance-due'
-                                                            : 'customers-balance-paid'
-                                                    }
-                                                >
-                                                    {formatCurrency(remaining)}
-                                                </strong>
-                                            </td>
-
-                                            <td>
-                                                <span
-                                                    className="customers-notes-cell customers-truncated"
-                                                    title={customer.notes || ''}
-                                                >
-                                                    {customer.notes || '—'}
-                                                </span>
-                                            </td>
-
-                                            <td>
-                                                <div className="customers-row-actions">
+                                        return (
+                                            <tr key={customer.id}>
+                                                <td>
                                                     <button
                                                         type="button"
-                                                        className="customers-row-button"
-                                                        onClick={() => openEditForm(customer)}
+                                                        className="customers-person customers-person-trigger"
+                                                        onClick={() => openCustomerDetails(customer)}
+                                                        title={`View ${customer.name}`}
                                                     >
-                                                        Edit
+                                                        <span
+                                                            className="customers-person-name customers-truncated"
+                                                            title={customer.name || ''}
+                                                        >
+                                                            {customer.name}
+                                                        </span>
                                                     </button>
+                                                </td>
 
-                                                    <button
-                                                        type="button"
-                                                        className="customers-row-button customers-row-button-danger"
-                                                        onClick={() => handleDelete(customer)}
-                                                        disabled={
-                                                            String(deletingId) === String(customer.id)
+                                                <td>
+                                                    <span
+                                                        className="customers-truncated customers-table-phone"
+                                                        title={customer.phone || ''}
+                                                    >
+                                                        {customer.phone || '—'}
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    <span
+                                                        className="customers-truncated customers-table-address"
+                                                        title={customer.address || ''}
+                                                    >
+                                                        {customer.address || '—'}
+                                                    </span>
+                                                </td>
+
+                                                <td>{formatCurrency(total)}</td>
+                                                <td>{formatCurrency(paid)}</td>
+
+                                                <td>
+                                                    <strong
+                                                        className={
+                                                            remaining > 0
+                                                                ? 'customers-balance-due'
+                                                                : 'customers-balance-paid'
                                                         }
                                                     >
-                                                        {String(deletingId) === String(customer.id)
-                                                            ? 'Deleting...'
-                                                            : 'Delete'}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                        {formatCurrency(remaining)}
+                                                    </strong>
+                                                </td>
+
+                                                <td>
+                                                    <span
+                                                        className="customers-notes-cell customers-truncated"
+                                                        title={customer.notes || ''}
+                                                    >
+                                                        {customer.notes || '—'}
+                                                    </span>
+                                                </td>
+
+                                                <td>
+                                                    <div className="customers-row-actions">
+                                                        <button
+                                                            type="button"
+                                                            className="customers-row-button"
+                                                            onClick={() => openEditForm(customer)}
+                                                        >
+                                                            Edit
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            className="customers-row-button customers-row-button-danger"
+                                                            onClick={() => handleDelete(customer)}
+                                                            disabled={
+                                                                String(deletingId) === String(customer.id)
+                                                            }
+                                                        >
+                                                            {String(deletingId) === String(customer.id)
+                                                                ? 'Deleting...'
+                                                                : 'Delete'}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="customers-pagination">
+                            <div className="customers-pagination-info">
+                                Showing {firstItem}–{lastItem} of {pagination.totalItems} customers
+                            </div>
+
+                            <div className="customers-pagination-controls">
+                                <label>
+                                    Rows per page
+
+                                    <select
+                                        value={pageSize}
+                                        onChange={(event) => {
+                                            setPageSize(Number(event.target.value))
+                                            setCurrentPage(1)
+                                        }}
+                                    >
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                        <option value={100}>100</option>
+                                    </select>
+                                </label>
+
+                                <button
+                                    type="button"
+                                    className="customers-secondary-button"
+                                    disabled={!pagination.hasPreviousPage || loading}
+                                    onClick={() => {
+                                        setCurrentPage((page) => page - 1)
+                                    }}
+                                >
+                                    Previous
+                                </button>
+
+                                <div className="customers-page-numbers">
+                                    {pageNumbers.map((page, index) => (
+                                        page === '...'
+                                            ? (
+                                                <span
+                                                    key={`ellipsis-${index}`}
+                                                    className="customers-pagination-ellipsis"
+                                                >
+                                                    ...
+                                                </span>
+                                            )
+                                            : (
+                                                <button
+                                                    key={page}
+                                                    type="button"
+                                                    className={
+                                                        page === pagination.currentPage
+                                                            ? 'customers-page-number active'
+                                                            : 'customers-page-number'
+                                                    }
+                                                    aria-current={
+                                                        page === pagination.currentPage
+                                                            ? 'page'
+                                                            : undefined
+                                                    }
+                                                    disabled={loading}
+                                                    onClick={() => setCurrentPage(page)}
+                                                >
+                                                    {page}
+                                                </button>
+                                            )
+                                    ))}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="customers-secondary-button"
+                                    disabled={!pagination.hasNextPage || loading}
+                                    onClick={() => {
+                                        setCurrentPage((page) => page + 1)
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    </>
                 )}
             </section>
-
-            <p className="customers-page-note">
-                Showing {filteredCustomers.length} of {customers.length} customers.
-            </p>
 
             {showForm && (
                 <div
@@ -752,7 +874,7 @@ function Customers() {
                             </label>
 
                             <label>
-                                Total amount (TRY)
+                                Total amount (USD)
                                 <input
                                     type="number"
                                     name="total_amount"
@@ -766,7 +888,7 @@ function Customers() {
                             </label>
 
                             <label>
-                                Amount paid (TRY)
+                                Amount paid (USD)
                                 <input
                                     type="number"
                                     name="amount_paid"
@@ -856,7 +978,6 @@ function Customers() {
                     >
                         <div className="customers-modal-header">
                             <div className="customers-details-person">
-
                                 <div>
                                     <p className="customers-modal-eyebrow">
                                         CUSTOMER DETAILS
@@ -901,9 +1022,11 @@ function Customers() {
                                 <span>Remaining balance</span>
                                 <strong
                                     className={
-                                        Number(selectedCustomer.remaining_balance ??
+                                        Number(
+                                            selectedCustomer.remaining_balance ??
                                             Number(selectedCustomer.total_amount ?? 0) -
-                                            Number(selectedCustomer.amount_paid ?? 0)) > 0
+                                            Number(selectedCustomer.amount_paid ?? 0)
+                                        ) > 0
                                             ? 'customers-balance-due'
                                             : 'customers-balance-paid'
                                     }

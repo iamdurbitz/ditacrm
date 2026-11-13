@@ -2888,3 +2888,91 @@ a {
         animation: none;
     }
 }
+
+/* Customers Pagination */
+
+.customers-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--border-color, #e5e7eb);
+    flex-wrap: wrap;
+}
+
+.customers-pagination-info {
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+}
+
+.customers-pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.customers-pagination-controls label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary, #6b7280);
+}
+
+.customers-pagination-controls select {
+    padding: 8px 10px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 8px;
+    background: var(--surface, white);
+    color: inherit;
+}
+
+.customers-page-numbers {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.customers-page-number {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid var(--border-color, #d1d5db);
+    border-radius: 7px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.customers-page-number:hover:not(:disabled) {
+    background: var(--hover-background, #f3f4f6);
+}
+
+.customers-page-number.active {
+    background: var(--primary-color, #2563eb);
+    border-color: var(--primary-color, #2563eb);
+    color: white;
+}
+
+.customers-page-number:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.customers-pagination-ellipsis {
+    padding: 0 4px;
+    color: var(--text-secondary, #6b7280);
+}
+
+@media (max-width: 768px) {
+    .customers-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .customers-pagination-controls {
+        width: 100%;
+    }
+}
